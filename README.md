@@ -1,1 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QRify QR Codes</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f4f6f8;
+      color: #333;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+    h1 {
+      color: #007BFF;
+      margin-bottom: 20px;
+    }
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      font-size: 1em;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .error {
+      color: red;
+      font-size: 0.9em;
+      margin: -8px 0 10px 0;
+      text-align: left;
+    }
+    #result, #qr {
+      background: #e9f5ff;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 20px;
+    }
+    #qr img {
+      max-width: 200px;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+    a {
+      color: #007BFF;
+      word-break: break-all;
+    }
 
+    /* Redirect / Ad Section */
+    #redirectSection {
+      display: none;
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+    #adText {
+      font-size: 1.2em;
+      margin-bottom: 20px;
+      color: #333;
+    }
+    #countdown {
+      font-weight: bold;
+      font-size: 1.4em;
+      margin-bottom: 15px;
+      color: #007BFF;
+    }
+    #skipBtn {
+      background-color: #28a745;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 1em;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    #skipBtn:hover {
+      background-color: #1e7e34;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="formSection">
+    <h1>URL Shortener & QR Generator</h1>
+    <form id="urlForm" novalidate>
+      <input type="text" id="name" placeholder="Name and Surname" required />
+      <div id="nameError" class="error"></div>
+
+      <input type="email" id="email" placeholder="Email" required />
+      <div id="emailError" class="error"></div>
+
+      <input type="url" id="url" placeholder="Enter your URL here" required />
+      <div id="urlError" class="error"></div>
+
+      <button type="submit">Generate</button>
+    </form>
+
+    <div id="result"></div>
+    <div id="qr"></div>
+  </div>
+
+  <div id="redirectSection">
+    <div id="adText">Welcome to QRify QR Codes — Your trusted URL shortener & QR code generator! 🚀</div>
+    <div id="countdown">Redirecting in 5 seconds...</div>
+    <button id="skipBtn">Skip Ad</button>
+  </div>
+
+  <script>
+    // Utility to generate random short code
+    function generateShortCode(length = 6) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      let code = '';
+      for (let i = 0; i < length; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
+
+    // QR code generator URL
+    function generateQRUrl(data) {
+      return `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(data)}&size=200x200`;
+    }
+
+    // Simple URL suspicious check
+    function isSuspiciousURL(url) {
+      const lower = url.toLowerCase();
+      const badPatterns = ['login', 'verify', 'bank', 'paypal', 'free-money', '.exe', '.scr', '.zip', 'bit.ly', 'grabify'];
+      return badPatterns.some(p => lower.includes(p));
+    }
+
+    // Validation of inputs
+    function validateForm(name, email, url) {
+      let valid = true;
+
+      document.getElementById('nameError').textContent = '';
+      document.getElementById('emailError').textContent = '';
+      document.getElementById('urlError').textContent = '';
+
+      if (!name.trim()) {
+        document.getElementById('nameError').textContent = 'Name is required.';
+        valid = false;
+      }
+
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(email)) {
+        document.getElementById('emailError').textContent = 'Enter a valid email address.';
+        valid = false;
+      }
+
+      try {
+        const parsedUrl = new URL(url);
+        if (!parsedUrl.protocol.startsWith('https:')) {
+          throw new Error();
+        }
+        if (isSuspiciousURL(url)) {
+          document.getElementById('urlError').textContent = 'This URL looks suspicious. Please double-check it.';
+          valid = false;
+        }
+      } catch {
+        document.getElementById('urlError').textContent = 'Enter a valid HTTPS URL.';
+        valid = false;
+      }
+
+      return valid;
+    }
+
+    // Save submissions locally (you see only)
+    function saveSubmission(name, email, url) {
+      const submissions = JSON.parse(localStorage.getItem('submissions') || '[]');
+      submissions.push({ name, email, url, date: new Date().toISOString() });
+      localStorage.setItem('submissions', JSON.stringify(submissions));
+    }
+
+    // Form submit event
+    document.getElementById('urlForm').addEventListener('submit', e => {
+      e.preventDefault();
+
+      const name = document.getElementById('name').value;
+      const email = document.getElementById('email').value;
+      const userUrl = document.getElementById('url').value;
+
+      if (!validateForm(name, email, userUrl)) return;
+
+      const shortCode = generateShortCode();
+      // The QR code points to the current page with a special query parameter for redirect
+      // This triggers the redirect/ad logic below
+      const redirectUrl = `${window.location.origin}${window.location.pathname}?redirect=${encodeURIComponent(userUrl)}`;
+
+      const shortUrl = `qrify-qrcodes/${shortCode}`;
+
+      saveSubmission(name, email, userUrl);
+
+      // Show result and QR code
+      document.getElementById('result').innerHTML = `
+        <p><strong>Shortened URL:</strong> <a href="${redirectUrl}" target="_blank" rel="noopener noreferrer">${shortUrl}</a></p>
+      `;
+      const qrCodeUrl = generateQRUrl(redirectUrl);
+      document.getElementById('qr').innerHTML = `
+        <h3>QR Code</h3>
+        <img src="${qrCodeUrl}" alt="QR Code" />
+        <p><a href="${qrCodeUrl}" target="_blank" rel="noopener noreferrer">Open QR Code in new tab</a></p>
+        <button onclick="downloadQR('${qrCodeUrl}')">Download QR Code</button>
+      `;
+    });
+
+    function downloadQR(qrUrl) {
+      const link = document.createElement('a');
+      link.href = qrUrl;
+      link.download = 'qr-code.png';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Redirect/Ad logic if URL has ?redirect= param
+    function checkRedirect() {
+      const params = new URLSearchParams(window.location.search);
+      const redirectTarget = params.get('redirect');
+
+      if (!redirectTarget) return; // no redirect param, normal page
+
+      // Hide main form, show ad section
+      document.getElementById('formSection').style.display = 'none';
+      const redirectSection = document.getElementById('redirectSection');
+      redirectSection.style.display = 'block';
+
+      let countdown = 5;
+      const countdownEl = document.getElementById('countdown');
+      const intervalId = setInterval(() => {
+        countdown--;
+        if (countdown > 0) {
+          countdownEl.textContent = `Redirecting in ${countdown} second${countdown === 1 ? '' : 's'}...`;
+        } else {
+          clearInterval(intervalId);
+          window.location.href = redirectTarget;
+        }
+      }, 1000);
+
+      // Skip button to immediately redirect
+      document.getElementById('skipBtn').addEventListener('click', () => {
+        clearInterval(intervalId);
+        window.location.href = redirectTarget;
+      });
+    }
+
+    // Run on page load
+    checkRedirect();
+  </script>
+</body>
+</html>
